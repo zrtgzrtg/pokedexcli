@@ -9,9 +9,13 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
+
+	pokecache "github.com/zrtgzrtg/pokedexcli/internal"
 )
 
 var conf config
+var cache *pokecache.Cache
 
 var cliCommands = map[string]cliCommand{
 	"exit": {
@@ -87,25 +91,38 @@ func commandHelp(cptr *config) error {
 }
 
 func commandMap(cptr *config) error {
-	req, err := http.NewRequest("GET", cptr.Next.String(), nil)
-	if err != nil {
-		return err
-	}
 
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	//parse http.Response initialized for caching purpose
+	var stringResp []byte
 
-	stringResp, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	// cache initializing
+	cache = pokecache.NewCache(10 * time.Second)
+	// look if this url cached already
+
+	val, ok := cache.Get(cptr.Next.String())
+	if ok {
+		stringResp = val
+	} else {
+		req, err := http.NewRequest("GET", cptr.Next.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		client := http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		stringResp, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
 	}
 
 	var jsonResponse PokeResponse
-	err = json.Unmarshal(stringResp, &jsonResponse)
+	err := json.Unmarshal(stringResp, &jsonResponse)
 	if err != nil {
 		return err
 	}
@@ -117,6 +134,9 @@ func commandMap(cptr *config) error {
 	if err != nil {
 		return err
 	}
+
+	// add Previous to Cache
+	cache.Add(cptr.Next.String(), stringResp)
 
 	conf = config{
 		Next:     *parsedNext,
@@ -130,25 +150,34 @@ func commandMap(cptr *config) error {
 	return nil
 }
 func commandMapb(cptr *config) error {
-	req, err := http.NewRequest("GET", cptr.Previous.String(), nil)
-	if err != nil {
-		return err
-	}
 
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	// mapb just copies logic from map. Look at comments from map to understand
 
-	stringResp, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	var stringResp []byte
+	val, ok := cache.Get(cptr.Next.String())
+	if ok {
+		stringResp = val
+	} else {
+		req, err := http.NewRequest("GET", cptr.Previous.String(), nil)
+		if err != nil {
+			return err
+		}
+
+		client := http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		stringResp, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
 	}
 
 	var jsonResponse PokeResponse
-	err = json.Unmarshal(stringResp, &jsonResponse)
+	err := json.Unmarshal(stringResp, &jsonResponse)
 	if err != nil {
 		return err
 	}
