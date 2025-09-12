@@ -9,5 +9,5 @@ type config struct {
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(cptr *config) error
+	callback    func(cptr *config, args []string) error
 }

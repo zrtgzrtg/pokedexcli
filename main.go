@@ -14,7 +14,7 @@ import (
 	pokecache "github.com/zrtgzrtg/pokedexcli/internal"
 )
 
-var conf config
+var conf *config
 var cache *pokecache.Cache
 
 var cliCommands = map[string]cliCommand{
@@ -33,13 +33,18 @@ var cliCommands = map[string]cliCommand{
 		description: "prints previous 20 locations",
 		callback:    commandMapb,
 	},
+	"explore": {
+		name:        "explore",
+		description: "print all pokemon for a given location",
+		callback:    explore,
+	},
 }
 
-func checkAndCallReg(name string, cptr *config) {
+func checkAndCallReg(name string, cptr *config, args []string) {
 	if val, ok := cliCommands[name]; !ok {
 		fmt.Println("Unknown command")
 	} else {
-		val.callback(cptr)
+		val.callback(cptr, args)
 	}
 }
 func main() {
@@ -51,13 +56,14 @@ func main() {
 	}
 
 	parsedUrl, _ := url.Parse("https://pokeapi.co/api/v2/location-area/")
-	conf = config{
-		Next:     *parsedUrl,
-		Previous: url.URL{},
-	}
-	for true {
+	conf = new(config)
+	conf.Next = *parsedUrl
+	conf.Previous = url.URL{}
+	for {
 
 		fmt.Print("Pokedex > ")
+
+		args := []string{}
 
 		if scanner.Scan() {
 
@@ -65,19 +71,29 @@ func main() {
 
 			lineClean := cleanInput(line)
 
-			checkAndCallReg(lineClean[0], &conf)
+			if len(lineClean) > 1 {
+				for i, val := range lineClean {
+					if i == 0 {
+						continue
+					}
+					args = append(args, val)
+
+				}
+			}
+
+			checkAndCallReg(lineClean[0], conf, args)
 
 		}
 	}
 
 }
 
-func commandExit(cptr *config) error {
+func commandExit(cptr *config, args []string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
-func commandHelp(cptr *config) error {
+func commandHelp(cptr *config, args []string) error {
 
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage:")
@@ -90,7 +106,10 @@ func commandHelp(cptr *config) error {
 	return nil
 }
 
-func commandMap(cptr *config) error {
+func commandMap(cptr *config, args []string) error {
+
+	// save current call to assign as previous
+	currentURL := cptr.Next
 
 	//parse http.Response initialized for caching purpose
 	var stringResp []byte
@@ -99,11 +118,13 @@ func commandMap(cptr *config) error {
 	cache = pokecache.NewCache(10 * time.Second)
 	// look if this url cached already
 
-	val, ok := cache.Get(cptr.Next.String())
+	val, ok := cache.Get(currentURL.String())
 	if ok {
+		fmt.Println("cache hit")
 		stringResp = val
 	} else {
-		req, err := http.NewRequest("GET", cptr.Next.String(), nil)
+		time.Sleep(2 * time.Second)
+		req, err := http.NewRequest("GET", currentURL.String(), nil)
 		if err != nil {
 			return err
 		}
@@ -121,27 +142,16 @@ func commandMap(cptr *config) error {
 		}
 	}
 
-	var jsonResponse PokeResponse
-	err := json.Unmarshal(stringResp, &jsonResponse)
-	if err != nil {
-		return err
-	}
-	parsedNext, err := url.Parse(jsonResponse.Next)
-	if err != nil {
-		return err
-	}
-	parsedPrevious, err := url.Parse(jsonResponse.Previous)
+	jsonResponse, parsedNext, _, err := getJson(stringResp)
 	if err != nil {
 		return err
 	}
 
 	// add Previous to Cache
-	cache.Add(cptr.Next.String(), stringResp)
+	cache.Add(currentURL.String(), stringResp)
 
-	conf = config{
-		Next:     *parsedNext,
-		Previous: *parsedPrevious,
-	}
+	conf.Next = parsedNext
+	conf.Previous = currentURL
 
 	for _, area := range jsonResponse.Results {
 		fmt.Println(area.Name, area.Url)
@@ -149,16 +159,19 @@ func commandMap(cptr *config) error {
 
 	return nil
 }
-func commandMapb(cptr *config) error {
+func commandMapb(cptr *config, args []string) error {
+
+	// save current call to assign as previous
+	currentURL := cptr.Previous
 
 	// mapb just copies logic from map. Look at comments from map to understand
 
 	var stringResp []byte
-	val, ok := cache.Get(cptr.Next.String())
+	val, ok := cache.Get(currentURL.String())
 	if ok {
 		stringResp = val
 	} else {
-		req, err := http.NewRequest("GET", cptr.Previous.String(), nil)
+		req, err := http.NewRequest("GET", currentURL.String(), nil)
 		if err != nil {
 			return err
 		}
@@ -176,24 +189,13 @@ func commandMapb(cptr *config) error {
 		}
 	}
 
-	var jsonResponse PokeResponse
-	err := json.Unmarshal(stringResp, &jsonResponse)
-	if err != nil {
-		return err
-	}
-	parsedNext, err := url.Parse(jsonResponse.Next)
-	if err != nil {
-		return err
-	}
-	parsedPrevious, err := url.Parse(jsonResponse.Previous)
+	jsonResponse, _, parsedPrevious, err := getJson(stringResp)
 	if err != nil {
 		return err
 	}
 
-	conf = config{
-		Next:     *parsedNext,
-		Previous: *parsedPrevious,
-	}
+	conf.Next = currentURL
+	conf.Previous = parsedPrevious
 
 	for _, area := range jsonResponse.Results {
 		fmt.Println(area.Name, area.Url)
@@ -201,6 +203,25 @@ func commandMapb(cptr *config) error {
 
 	return nil
 
+}
+
+// map helper for unmarshalling json
+
+func getJson(stringResp []byte) (resp PokeResponse, prev, next url.URL, err error) {
+	var jsonResponse PokeResponse
+	err = json.Unmarshal(stringResp, &jsonResponse)
+	if err != nil {
+		return PokeResponse{}, url.URL{}, url.URL{}, err
+	}
+	parsedNext, err := url.Parse(jsonResponse.Next)
+	if err != nil {
+		return PokeResponse{}, url.URL{}, url.URL{}, err
+	}
+	parsedPrevious, err := url.Parse(jsonResponse.Previous)
+	if err != nil {
+		return PokeResponse{}, url.URL{}, url.URL{}, err
+	}
+	return jsonResponse, *parsedNext, *parsedPrevious, nil
 }
 
 func cleanInput(text string) []string {
@@ -210,9 +231,7 @@ func cleanInput(text string) []string {
 
 	lower := strings.ToLower(text)
 	byteS := []byte(lower)
-
 	const SEP = byte(0)
-
 	longString := []byte{}
 
 	for i, b := range byteS {
