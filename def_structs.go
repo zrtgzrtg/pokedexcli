@@ -1,6 +1,8 @@
 package main
 
-import "net/url"
+import (
+	"net/url"
+)
 
 type config struct {
 	Next     url.URL

@@ -115,15 +115,16 @@ func commandMap(cptr *config, args []string) error {
 	var stringResp []byte
 
 	// cache initializing
-	cache = pokecache.NewCache(10 * time.Second)
+	cache = pokecache.NewCache(30 * time.Second)
 	// look if this url cached already
 
 	val, ok := cache.Get(currentURL.String())
 	if ok {
 		fmt.Println("cache hit")
+		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		stringResp = val
 	} else {
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 		req, err := http.NewRequest("GET", currentURL.String(), nil)
 		if err != nil {
 			return err
@@ -156,6 +157,10 @@ func commandMap(cptr *config, args []string) error {
 	for _, area := range jsonResponse.Results {
 		fmt.Println(area.Name, area.Url)
 	}
+	for key, _ := range cache.CacheEntries {
+
+		fmt.Println(string(key))
+	}
 
 	return nil
 }
@@ -169,6 +174,8 @@ func commandMapb(cptr *config, args []string) error {
 	var stringResp []byte
 	val, ok := cache.Get(currentURL.String())
 	if ok {
+		fmt.Println("cache hit")
+		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		stringResp = val
 	} else {
 		req, err := http.NewRequest("GET", currentURL.String(), nil)
