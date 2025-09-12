@@ -16,6 +16,7 @@ import (
 
 var conf *config
 var cache *pokecache.Cache
+var pokedex *Pokedex
 
 var cliCommands = map[string]cliCommand{
 	"exit": {
@@ -36,7 +37,17 @@ var cliCommands = map[string]cliCommand{
 	"explore": {
 		name:        "explore",
 		description: "print all pokemon for a given location",
-		callback:    explore,
+		callback:    commandExplore,
+	},
+	"catch": {
+		name:        "catch",
+		description: "attempts to catch pokemon by throwing a pokeball",
+		callback:    commandCatch,
+	},
+	"inspect": {
+		name:        "inspect",
+		description: "prints data about a pokemon if available in pokedex",
+		callback:    commandInspect,
 	},
 }
 
@@ -115,16 +126,16 @@ func commandMap(cptr *config, args []string) error {
 	var stringResp []byte
 
 	// cache initializing
-	cache = pokecache.NewCache(30 * time.Second)
+	if cache == nil {
+		cache = pokecache.NewCache(30 * time.Second)
+	}
 	// look if this url cached already
 
 	val, ok := cache.Get(currentURL.String())
 	if ok {
 		fmt.Println("cache hit")
-		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		stringResp = val
 	} else {
-		time.Sleep(1 * time.Second)
 		req, err := http.NewRequest("GET", currentURL.String(), nil)
 		if err != nil {
 			return err
@@ -175,7 +186,6 @@ func commandMapb(cptr *config, args []string) error {
 	val, ok := cache.Get(currentURL.String())
 	if ok {
 		fmt.Println("cache hit")
-		fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		stringResp = val
 	} else {
 		req, err := http.NewRequest("GET", currentURL.String(), nil)

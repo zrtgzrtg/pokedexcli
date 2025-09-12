@@ -13,3 +13,6 @@ type cliCommand struct {
 	description string
 	callback    func(cptr *config, args []string) error
 }
+type Pokedex struct {
+	caught map[string]Pokemon
+}
