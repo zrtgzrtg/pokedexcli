@@ -49,6 +49,11 @@ var cliCommands = map[string]cliCommand{
 		description: "prints data about a pokemon if available in pokedex",
 		callback:    commandInspect,
 	},
+	"pokedex": {
+		name:        "pokedex",
+		description: "shows all caught pokemon",
+		callback:    commandPokedex,
+	},
 }
 
 func checkAndCallReg(name string, cptr *config, args []string) {

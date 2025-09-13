@@ -143,3 +143,15 @@ func commandInspect(cptr *config, args []string) error {
 
 	return nil
 }
+
+func commandPokedex(cptr *config, args []string) error {
+	if pokedex == nil {
+		fmt.Println("No pokemon caught yet!")
+	}
+
+	fmt.Println("Your Pokedex:")
+	for _, val := range pokedex.caught {
+		fmt.Printf("  - %v\n", val.Name)
+	}
+	return nil
+}
